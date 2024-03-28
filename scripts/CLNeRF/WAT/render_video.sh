@@ -1,5 +1,5 @@
 #!/bin/bash
-export ROOT_DIR=dataset/WAT
+export ROOT_DIR=/mnt/Data2/nerf_datasets/WAT/
 
 task_number=$1
 task_curr=$2
