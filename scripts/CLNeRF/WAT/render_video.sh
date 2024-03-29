@@ -1,5 +1,4 @@
 #!/bin/bash
-export ROOT_DIR=/mnt/Data2/nerf_datasets/WAT/
 
 task_number=$1
 task_curr=$2
@@ -10,9 +9,9 @@ scale=$6
 render_fname=$7
 downsample=1.0
 
-export CUDA_HOME=/usr/local/cuda-11.6
-export PATH=/usr/local/cuda-11.6/bin:$PATH
-export LD_LIBRARY_PATH=/usr/local/cuda-11.6/lib64:$LD_LIBRARY_PATH
+#export CUDA_HOME=/usr/local/cuda-11.6
+#export PATH=/usr/local/cuda-11.6/bin:$PATH
+#export LD_LIBRARY_PATH=/usr/local/cuda-11.6/lib64:$LD_LIBRARY_PATH
 
 
 python render_NGP_WAT.py \

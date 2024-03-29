@@ -1,5 +1,4 @@
 #!/bin/bash
-export ROOT_DIR=dataset/tanks_and_temples
 
 task_number=10
 rep=$1

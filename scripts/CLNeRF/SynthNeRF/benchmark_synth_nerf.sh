@@ -1,7 +1,5 @@
 #!/bin/bash
 
-export ROOT_DIR=/mnt/Data2/nerf_datasets/Synthetic_NeRF
-
 rep=$1
 task_number=10
 

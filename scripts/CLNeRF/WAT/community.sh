@@ -1,7 +1,5 @@
 #!/bin/bash
 
-export ROOT_DIR=/mnt/Data2/nerf_datasets/WAT/
-
 task_number=10
 scene_name=community
 downsample=1.0

@@ -1,7 +1,5 @@
 #!/bin/bash
 
-export ROOT_DIR=dataset/WAT
-
 task_number=5
 scene_name=ninja
 downsample=1.0

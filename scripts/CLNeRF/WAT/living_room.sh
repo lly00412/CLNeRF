@@ -1,7 +1,5 @@
 #!/bin/bash
 
-export ROOT_DIR=/mnt/Data2/nerf_datasets/WAT/
-
 task_number=5
 scene_name=living_room
 downsample=1.0
