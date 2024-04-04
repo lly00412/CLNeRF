@@ -1,4 +1,5 @@
 #!/bin/bash
+export ROOT_DIR=/mnt/Data2/nerf_datasets/tanks_and_temples
 
 task_number=10
 rep=$1

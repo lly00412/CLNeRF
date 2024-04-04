@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export ROOT_DIR=/mnt/Data2/nerf_datasets/WAT/
+
 task_number=5
 scene_name=car_resized
 downsample=1.0
