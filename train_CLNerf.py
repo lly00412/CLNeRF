@@ -176,6 +176,7 @@ class NeRFSystem(LightningModule):
             self.model.update_density_grid(0.01*MAX_SAMPLES/3**0.5,
                                            warmup=self.global_step<self.warmup_steps,
                                            erode=self.hparams.dataset_name=='colmap')
+            # density_threshold = 0.01*MAX_SAMPLES/3**0.5
 
         results = self(batch, split='train')
         loss_d = self.loss(results, batch)

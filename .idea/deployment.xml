@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" remoteFilesAllowedToDisappearOnAutoupload="false">
+    <serverData>
+      <paths name="viper (10)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/mnt/Data2/liyan/CLNeRF" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="viper (11)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/mnt/Data2/liyan/CLNeRF" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="viper (12)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/mnt/Data2/liyan/CLNeRF" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="viper (13)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/mnt/Data2/liyan/CLNeRF" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+  </component>
+</project>
