@@ -266,6 +266,7 @@ class NeRFSystem(LightningModule):
                                                       density_threshold=0.01*MAX_SAMPLES/3**0.5)
             pcd_file = f'{self.pcd_dir}/epoch={hparams.num_epochs-1}-v{self.hparams.task_curr}.ply'
             write_pointcloud(pcd_file, xyz=xyzs, rgb=None)
+            del xyzs
 
     def on_test_start(self):
         torch.cuda.empty_cache()
