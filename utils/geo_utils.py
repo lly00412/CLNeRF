@@ -38,18 +38,20 @@ def write_pointcloud(filename,xyz,rgb=None):
 
 def extract_geometry_from_density_grid(model,resolution=100,density_threshold=0.5):
     scale = model.scale
-    X,Y,Z = torch.meshgrid(torch.arange(-scale, scale,resolution),
-                           torch.arange(-scale, scale,resolution),
-                           torch.arange(-scale, scale,resolution))
+    step = 2*scale/resolution
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    X,Y,Z = torch.meshgrid(torch.arange(-scale, scale, step),
+                           torch.arange(-scale, scale, step),
+                           torch.arange(-scale, scale,step))
     xyz_points = torch.stack((X.flatten(),Y.flatten(),Z.flatten()),dim=1).contiguous()
     if xyz_points.shape[0]>MAX_BATCH_SIZE:
-        pcd = torch.zeros(0,)
+        pcd = torch.zeros(0,).to(device)
         for xyzs in torch.split(xyz_points,MAX_BATCH_SIZE):
-            xyzs = xyzs.to(model.device)
+            xyzs = xyzs.to(device)
             sigmas, _ = model.density(xyzs, return_feat=True)
             pcd = torch.cat((pcd,xyzs[sigmas>=density_threshold]))
     else:
-        xyz_points = xyz_points.to(model.device)
+        xyz_points = xyz_points.to(device)
         sigmas, _ = model.density(xyz_points, return_feat=True)
         pcd = xyz_points[sigmas>=density_threshold]
         pcd = pcd.detach().cpu().numpy()
