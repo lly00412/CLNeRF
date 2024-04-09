@@ -5,7 +5,7 @@ task_number=10
 rep=$1
 
 data=tat_intermediate_M60
-for ((i=7; i<$task_number; i++))
+for ((i=0; i<$task_number; i++))
 do
     if [ $i -gt 0 ]
     then
@@ -16,7 +16,7 @@ do
     python train_CLNerf.py \
         --root_dir $ROOT_DIR'/'$data --dataset_name nerfpp_CLNerf \
         --exp_name $data'_'$task_number'task_'$rep \
-        --num_epochs 20 --scale 4.0 --rep_size $rep --eval_lpips \
+        --num_epochs 0 --scale 4.0 --rep_size $rep --eval_lpips \
         --task_curr $i --task_number $task_number \
         --val_only \
         --weight_path $ckpt_file \
@@ -35,7 +35,7 @@ do
     python train_CLNerf.py \
         --root_dir $ROOT_DIR'/'$data --dataset_name nerfpp_CLNerf \
         --exp_name $data'_'$task_number'task_'$rep \
-        --num_epochs 20 --scale 4.0 --rep_size $rep --eval_lpips \
+        --num_epochs 0 --scale 4.0 --rep_size $rep --eval_lpips \
         --task_curr $i --task_number $task_number \
         --val_only \
         --weight_path $ckpt_file \
@@ -55,29 +55,29 @@ do
     python train_CLNerf.py \
         --root_dir $ROOT_DIR'/'$data --dataset_name nerfpp_CLNerf \
         --exp_name $data'_'$task_number'task_'$rep \
-        --num_epochs 20 --scale 16.0 --batch_size 4096 --rep_size $rep --eval_lpips \
+        --num_epochs 0 --scale 16.0 --batch_size 4096 --rep_size $rep --eval_lpips \
         --task_curr $i --task_number $task_number \
         --val_only \
         --weight_path $ckpt_file \
         --save_density_pcd
 done
 
-data=tat_training_Truck
-for ((i=0; i<$task_number; i++))
-do
-  if [ $i -gt 0 ]
-    then
-    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'/epoch=19-v'$i'.ckpt'
-    else
-    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'/epoch=19.ckpt'
-    fi
-    python train_CLNerf.py \
-        --root_dir $ROOT_DIR'/'$data --dataset_name nerfpp_CLNerf \
-        --exp_name $data'_'$task_number'task_'$rep \
-        --num_epochs 20 --scale 16.0 --batch_size 4096 --rep_size $rep --eval_lpips \
-        --task_curr $i --task_number $task_number \
-        --val_only \
-        --weight_path $ckpt_file \
-        --save_density_pcd
-done
+#data=tat_training_Truck
+#for ((i=0; i<$task_number; i++))
+#do
+#  if [ $i -gt 0 ]
+#    then
+#    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'/epoch=19-v'$i'.ckpt'
+#    else
+#    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'/epoch=19.ckpt'
+#    fi
+#    python train_CLNerf.py \
+#        --root_dir $ROOT_DIR'/'$data --dataset_name nerfpp_CLNerf \
+#        --exp_name $data'_'$task_number'task_'$rep \
+#        --num_epochs 0 --scale 16.0 --batch_size 4096 --rep_size $rep --eval_lpips \
+#        --task_curr $i --task_number $task_number \
+#        --val_only \
+#        --weight_path $ckpt_file \
+#        --save_density_pcd
+#done
 

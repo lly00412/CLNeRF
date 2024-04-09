@@ -262,8 +262,8 @@ class NeRFSystem(LightningModule):
             self.log('test/lpips_vgg', mean_lpips, True)
         if self.hparams.save_density_pcd:
             xyzs = extract_geometry_from_density_grid(self.model,
-                                                      resolution=100,
-                                                      density_threshold=0.01*MAX_SAMPLES/3**0.5)
+                                                      resolution=128,
+                                                      density_threshold=0.05*MAX_SAMPLES/3**0.5)
             pcd_file = f'{self.pcd_dir}/epoch={hparams.num_epochs-1}-v{self.hparams.task_curr}.ply'
             write_pointcloud(pcd_file, xyz=xyzs, rgb=None)
             del xyzs
@@ -315,7 +315,7 @@ if __name__ == '__main__':
                                name=hparams.exp_name,
                                default_hp_metric=False)
 
-    if hparams.task_curr != hparams.task_number - 1:
+    if (hparams.task_curr != hparams.task_number - 1) or hparams.val_only:
         trainer = Trainer(max_epochs=hparams.num_epochs,
                         check_val_every_n_epoch=hparams.num_epochs+1,
                         callbacks=callbacks,

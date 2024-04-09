@@ -56,3 +56,5 @@ def extract_geometry_from_density_grid(model,resolution=100,density_threshold=0.
         pcd = xyz_points[sigmas>=density_threshold]
         pcd = pcd.detach().cpu().numpy()
     return pcd
+
+def extract_geometry_from_depth_map(model,depth_map,resolution=100,density_threshold=0.5)
