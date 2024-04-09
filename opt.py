@@ -104,6 +104,10 @@ def get_opts():
                         action='store_true',
                         default=False,
                         help='whether to save the point cloud from density grid')
+    parser.add_argument('--save_depth_pcd',
+                        action='store_true',
+                        default=False,
+                        help='whether to save the point cloud from render depth map')
 
     # misc
     parser.add_argument('--exp_name',

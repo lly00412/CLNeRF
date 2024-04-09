@@ -57,4 +57,40 @@ def extract_geometry_from_density_grid(model,resolution=100,density_threshold=0.
         pcd = pcd.detach().cpu().numpy()
     return pcd
 
-def extract_geometry_from_depth_map(model,depth_map,resolution=100,density_threshold=0.5)
+def extract_geometry_from_depth_map(tgt_depth_map,c2w,K,img_shape=None,device='cpu'):
+    torch.cuda.empty_cache()
+
+    depth_map = tgt_depth_map.clone().to(device)
+    height, width = img_shape
+    K_homo = torch.eye(4)
+    K_homo[:3, :3] = K.clone().cpu()
+
+    c2w_ = torch.eye(4)
+    c2w_[:3] = c2w.clone().cpu()
+    w2c = torch.inverse(c2w_)
+
+    P_tgt = w2c.to(torch.float32)  # 4x4
+    K_tgt = K_homo.clone().to(torch.float32)  # 4x4
+
+    P_tgt = P_tgt.to(device)
+    K_tgt = K_tgt.to(device)
+
+    bwd_proj = torch.matmul(torch.inverse(P_tgt), torch.inverse(K_tgt)).to(torch.float32)
+    bwd_rot = bwd_proj[:3, :3]
+    bwd_trans = bwd_proj[:3, 3:4]
+
+    y, x = torch.meshgrid([torch.arange(0, height, dtype=torch.float32),
+                           torch.arange(0, width, dtype=torch.float32)],
+                          indexing='ij')
+    y, x = y.contiguous(), x.contiguous()
+    y, x = y.reshape(height * width), x.reshape(height * width)
+    homog = torch.stack((x, y, torch.ones_like(x))).to(bwd_rot)
+
+    # get world coords
+    world_coords = torch.matmul(bwd_rot, homog)
+    world_coords = world_coords * depth_map.reshape(1, -1)
+    world_coords = world_coords + bwd_trans.reshape(3, 1)
+    world_coords = torch.movedim(world_coords, 0, 1)
+    # world_coords = world_coords.reshape(height, width, 3)
+
+    return world_coords.detach().cpu().numpy()

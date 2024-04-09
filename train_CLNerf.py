@@ -214,6 +214,9 @@ class NeRFSystem(LightningModule):
         if self.hparams.save_density_pcd:
             self.pcd_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd'
             os.makedirs(self.pcd_dir, exist_ok=True)
+        if self.hparams.save_depth_pcd:
+            self.pcd_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd/v{hparams.task_curr}'
+            os.makedirs(self.pcd_dir, exist_ok=True)
 
     def validation_step(self, batch, batch_nb):
         rgb_gt = batch['rgb']
@@ -236,6 +239,20 @@ class NeRFSystem(LightningModule):
                            torch.clip(rgb_gt*2-1, -1, 1))
             logs['lpips'] = self.val_lpips.compute()
             self.val_lpips.reset()
+
+        if self.hparams.save_depth_pcd:
+            idx = batch['img_idxs']
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+            img_w, img_h = self.test_dataset.img_wh
+            xyzs = extract_geometry_from_depth_map(tgt_depth_map=results['depth'].cpu(),
+                                                  c2w=batch['pose'],
+                                                  K=self.test_dataset.K,
+                                                  img_shape=(img_h, img_w),
+                                                  device=device)
+            pcd_file = f'{self.pcd_dir}/{idx:03d}.ply'
+            rgbs = (results['rgb'].cpu().numpy() * 255).astype(np.uint8)
+            write_pointcloud(pcd_file, xyz=xyzs, rgb=rgbs)
+            del xyzs,rgbs
 
         if not self.hparams.no_save_test: # save test image to disk
             idx = batch['img_idxs']
