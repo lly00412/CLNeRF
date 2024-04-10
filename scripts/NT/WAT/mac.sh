@@ -1,6 +1,5 @@
 #!/bin/bash
 
-export ROOT_DIR=dataset/WAT
 
 task_number=6
 task_curr=5

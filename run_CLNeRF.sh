@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # CLNeRF on WAT dataset
-rep=10
-sh scripts/CLNeRF/WAT/breville.sh ${rep}
-sh scripts/CLNeRF/WAT/community.sh ${rep}
-sh scripts/CLNeRF/WAT/kitchen.sh ${rep}
-sh scripts/CLNeRF/WAT/living_room.sh ${rep}
+#rep=10
+#sh scripts/CLNeRF/WAT/breville.sh ${rep}
+#sh scripts/CLNeRF/WAT/community.sh ${rep}
+#sh scripts/CLNeRF/WAT/kitchen.sh ${rep}
+#sh scripts/CLNeRF/WAT/living_room.sh ${rep}
 #bash scripts/CLNeRF/WAT/spa.sh ${rep}
 #bash scripts/CLNeRF/WAT/street.sh ${rep}
 #bash scripts/CLNeRF/WAT/car.sh ${rep}
@@ -16,9 +16,8 @@ sh scripts/CLNeRF/WAT/living_room.sh ${rep}
 
 # CLNeRF on Synth-NeRF dataset
 #rep=10
-#bash scripts/CLNeRF/SynthNeRF/benchmark_synth_nerf.sh ${rep}
+#sh scripts/CLNeRF/SynthNeRF/benchmark_synth_nerf.sh ${rep}
 
 # CLNeRF on NeRF++ dataset
-#rep=10
-#bash scripts/CLNeRF/nerfpp/benchmark_nerfpp.sh ${rep}
-
+rep=10
+sh scripts/CLNeRF/nerfpp/benchmark_nerfpp.sh ${rep}
