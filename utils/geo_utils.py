@@ -57,7 +57,7 @@ def extract_geometry_from_density_grid(model,resolution=100,density_threshold=0.
         pcd = pcd.detach().cpu().numpy()
     return pcd
 
-def extract_geometry_from_depth_map(tgt_depth_map,c2w,K,img_shape=None,device='cpu'):
+def extract_geometry_from_depth_map(tgt_depth_map,c2w,K,depth_clip=None,rgbs=None,img_shape=None,device='cpu'):
     torch.cuda.empty_cache()
 
     depth_map = tgt_depth_map.clone().to(device)
@@ -93,4 +93,14 @@ def extract_geometry_from_depth_map(tgt_depth_map,c2w,K,img_shape=None,device='c
     world_coords = torch.movedim(world_coords, 0, 1)
     # world_coords = world_coords.reshape(height, width, 3)
 
-    return world_coords.detach().cpu().numpy()
+    if depth_clip is not None:
+        world_coords = world_coords[depth_map<=depth_clip]
+        if rgbs is not None:
+            rgbs = rgbs.to(device)
+            rgbs = rgbs[depth_map<=depth_clip]
+            rgbs = rgbs.detach().cpu()
+
+    if rgbs is not None:
+        rgbs = (rgbs * 255).numpy().astype(np.uint8)
+
+    return world_coords.detach().cpu().numpy(),rgbs
