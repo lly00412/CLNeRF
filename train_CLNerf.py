@@ -38,6 +38,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.utilities.distributed import all_gather_ddp_if_available
 
 from utils.utils import slim_ckpt, load_ckpt
+from utils.geo_utils import *
 
 import warnings; warnings.filterwarnings("ignore")
 
@@ -120,8 +121,13 @@ class NeRFSystem(LightningModule):
 
     def configure_optimizers(self):
         # define additional parameters
-        self.register_buffer('directions', self.train_dataset.directions.to(self.device))
-        self.register_buffer('poses', self.train_dataset.poses.to(self.device))
+        if not self.hparams.val_only:
+            self.register_buffer('directions', self.train_dataset.directions.to(self.device))
+            self.register_buffer('poses', self.train_dataset.poses.to(self.device))
+        else:
+            # define additional parameters
+            self.register_buffer('directions', self.test_dataset.directions.to(self.device))
+            self.register_buffer('poses', self.test_dataset.poses.to(self.device))
 
         if self.hparams.optimize_ext:
             N = len(self.train_dataset.poses)
@@ -176,6 +182,7 @@ class NeRFSystem(LightningModule):
             self.model.update_density_grid(0.01*MAX_SAMPLES/3**0.5,
                                            warmup=self.global_step<self.warmup_steps,
                                            erode=self.hparams.dataset_name=='colmap')
+            # density_threshold = 0.01*MAX_SAMPLES/3**0.5
 
         results = self(batch, split='train')
         loss_d = self.loss(results, batch)
@@ -204,6 +211,12 @@ class NeRFSystem(LightningModule):
         if not self.hparams.no_save_test:
             self.val_dir = f'results/CLNerf/{self.hparams.dataset_name}/{self.hparams.exp_name}'
             os.makedirs(self.val_dir, exist_ok=True)
+        if self.hparams.save_density_pcd:
+            self.pcd_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd'
+            os.makedirs(self.pcd_dir, exist_ok=True)
+        if self.hparams.save_depth_pcd:
+            self.pcd_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd/v{hparams.task_curr}'
+            os.makedirs(self.pcd_dir, exist_ok=True)
 
     def validation_step(self, batch, batch_nb):
         rgb_gt = batch['rgb']
@@ -226,6 +239,20 @@ class NeRFSystem(LightningModule):
                            torch.clip(rgb_gt*2-1, -1, 1))
             logs['lpips'] = self.val_lpips.compute()
             self.val_lpips.reset()
+
+        if self.hparams.save_depth_pcd:
+            idx = batch['img_idxs']
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+            img_w, img_h = self.test_dataset.img_wh
+            xyzs = extract_geometry_from_depth_map(tgt_depth_map=results['depth'].cpu(),
+                                                  c2w=batch['pose'],
+                                                  K=self.test_dataset.K,
+                                                  img_shape=(img_h, img_w),
+                                                  device=device)
+            pcd_file = f'{self.pcd_dir}/{idx:03d}.ply'
+            rgbs = (results['rgb'].cpu().numpy() * 255).astype(np.uint8)
+            write_pointcloud(pcd_file, xyz=xyzs, rgb=rgbs)
+            del xyzs,rgbs
 
         if not self.hparams.no_save_test: # save test image to disk
             idx = batch['img_idxs']
@@ -250,6 +277,13 @@ class NeRFSystem(LightningModule):
             lpipss = torch.stack([x['lpips'] for x in outputs])
             mean_lpips = all_gather_ddp_if_available(lpipss).mean()
             self.log('test/lpips_vgg', mean_lpips, True)
+        if self.hparams.save_density_pcd:
+            xyzs = extract_geometry_from_density_grid(self.model,
+                                                      resolution=128,
+                                                      density_threshold=0.05*MAX_SAMPLES/3**0.5)
+            pcd_file = f'{self.pcd_dir}/epoch={hparams.num_epochs-1}-v{self.hparams.task_curr}.ply'
+            write_pointcloud(pcd_file, xyz=xyzs, rgb=None)
+            del xyzs
 
     def on_test_start(self):
         torch.cuda.empty_cache()
@@ -280,8 +314,10 @@ class NeRFSystem(LightningModule):
 
 if __name__ == '__main__':
     hparams = get_opts()
-    if hparams.val_only and (not hparams.ckpt_path):
-        raise ValueError('You need to provide a @ckpt_path for validation!')
+    # if hparams.val_only and (not hparams.ckpt_path):
+    #     raise ValueError('You need to provide a @ckpt_path for validation!')
+    if hparams.val_only and (not hparams.weight_path):
+        raise ValueError('You need to provide a @weight_path for validation!')
     system = NeRFSystem(hparams)
 
     ckpt_cb = ModelCheckpoint(dirpath=f'ckpts/lb/{hparams.dataset_name}/{hparams.exp_name}',
@@ -296,7 +332,7 @@ if __name__ == '__main__':
                                name=hparams.exp_name,
                                default_hp_metric=False)
 
-    if hparams.task_curr != hparams.task_number - 1:
+    if (hparams.task_curr != hparams.task_number - 1) or hparams.val_only:
         trainer = Trainer(max_epochs=hparams.num_epochs,
                         check_val_every_n_epoch=hparams.num_epochs+1,
                         callbacks=callbacks,
@@ -322,6 +358,10 @@ if __name__ == '__main__':
                         precision=16)
 
     trainer.fit(system, ckpt_path=hparams.ckpt_path)
+    # if not hparams.val_only:
+    #     trainer.fit(system, ckpt_path=hparams.ckpt_path)
+    # else:
+    #     trainer.validate(system, ckpt_path=hparams.ckpt_path)
 
     if not hparams.val_only: # save slimmed ckpt for the last epoch
         ckpt_ = \
@@ -340,5 +380,6 @@ if __name__ == '__main__':
                         [imageio.imread(img) for img in imgs[1::2]],
                         fps=30, macro_block_size=1)
 
-    if hparams.task_curr != (hparams.task_number -1):
-        trainer.test(system)
+    if not hparams.val_only:
+        if hparams.task_curr != (hparams.task_number -1):
+            trainer.test(system)
