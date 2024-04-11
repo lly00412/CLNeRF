@@ -34,7 +34,7 @@ def write_pointcloud(filename,xyz,rgb=None):
                                         rgb[i,0].tobytes(),rgb[i,1].tobytes(),
                                         rgb[i,2].tobytes())))
     fid.close()
-    print(f'Save points to {fid}!')
+    print(f'Save points to {filename}!')
 
 def extract_geometry_from_density_grid(model,resolution=100,density_threshold=0.5):
     scale = model.scale
