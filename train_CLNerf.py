@@ -215,7 +215,7 @@ class NeRFSystem(LightningModule):
             self.pcd_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd'
             os.makedirs(self.pcd_dir, exist_ok=True)
         if self.hparams.save_depth_pcd:
-            self.pcd_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd/v{hparams.task_curr}'
+            self.pcd_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd_clip/v{hparams.task_curr}'
             os.makedirs(self.pcd_dir, exist_ok=True)
 
     def validation_step(self, batch, batch_nb):
@@ -244,15 +244,29 @@ class NeRFSystem(LightningModule):
             idx = batch['img_idxs']
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
             img_w, img_h = self.test_dataset.img_wh
-            xyzs = extract_geometry_from_depth_map(tgt_depth_map=results['depth'].cpu(),
+            xyzs,rgbs = extract_geometry_from_depth_map(tgt_depth_map=results['depth'].cpu(),
+                                                        rgbs=results['rgb'].cpu(),
                                                   c2w=batch['pose'],
                                                   K=self.test_dataset.K,
                                                   img_shape=(img_h, img_w),
-                                                  device=device)
+                                                  depth_clip=self.hparams.depth_clip,
+                                                  device=device) # N*3
+
+            align_m = np.array([[1.138071816345332055e+00,-7.300598829132702583e-02,6.497527927834608752e-01,-2.323759808085589018e+00],
+                                [-6.536992969315738033e-01,-9.985495936658358995e-02,1.133764632318774668e+00,1.657361383604702088e+00],
+                                [-1.363067303782293342e-02,-1.306680962583968819e+00,-1.229434503706130222e-01,-7.163783983342566941e+00],
+                                [0,0,0,1]])
+            xyzs = np.concatenate((xyzs,np.ones((xyzs.shape[0],1))),axis=-1)
+            xyzs = np.expand_dims(xyzs,axis=2)
+            align_m = np.expand_dims(align_m,axis=0)
+            xyzs = align_m.repeat(xyzs.shape[0],axis=0) @ xyzs
+            xyzs = xyzs.squeeze(-1)
+
             pcd_file = f'{self.pcd_dir}/{idx:03d}.ply'
-            rgbs = (results['rgb'].cpu().numpy() * 255).astype(np.uint8)
-            write_pointcloud(pcd_file, xyz=xyzs, rgb=rgbs)
-            del xyzs,rgbs
+            # rgbs = (results['rgb'].cpu().numpy() * 255).astype(np.uint8)
+            # write_pointcloud(pcd_file, xyz=xyzs, rgb=rgbs)
+            write_pointcloud(pcd_file, xyz=xyzs[:,:3], rgb=rgbs)
+            del xyzs,rgbs,align_m
 
         if not self.hparams.no_save_test: # save test image to disk
             idx = batch['img_idxs']
