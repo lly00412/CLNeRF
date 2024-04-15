@@ -1,6 +1,8 @@
 import torch
 import numpy as np
 import struct
+import open3d as o3d
+import os
 
 MAX_BATCH_SIZE = 2048
 def write_pointcloud(filename,xyz,rgb=None):
@@ -104,3 +106,21 @@ def extract_geometry_from_depth_map(tgt_depth_map,c2w,K,depth_clip=None,rgbs=Non
         rgbs = (rgbs * 255).numpy().astype(np.uint8)
 
     return world_coords.detach().cpu().numpy(),rgbs
+
+def create_pcd_from_numpy(xyz):
+    if not isinstance(xyz,np.ndarray):
+        raise ValueError('Input must be numpy array!')
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(xyz)
+    return pcd
+
+def create_pcd_from_ply(ply_file):
+    if not os.path.isfile(ply_file):
+        raise ValueError('ply file does not exist!')
+    pcd = o3d.io.read_point_cloud(ply_file)
+    return pcd
+
+def mark_points_on_surface(pred_pcd,gt_pcd,threshold):
+    # create c
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(xyz)
