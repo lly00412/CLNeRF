@@ -122,5 +122,5 @@ def create_pcd_from_ply(ply_file):
 
 def mark_points_on_surface(pred_pcd,gt_pcd,threshold):
     # create c
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(xyz)
+    dists = pred_pcd.compute_point_cloud_distance(gt_pcd)
+
