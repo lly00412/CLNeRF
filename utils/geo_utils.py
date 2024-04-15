@@ -121,6 +121,8 @@ def create_pcd_from_ply(ply_file):
     return pcd
 
 def mark_points_on_surface(pred_pcd,gt_pcd,threshold):
-    # create c
     dists = pred_pcd.compute_point_cloud_distance(gt_pcd)
-
+    dists = np.asarray(dists)
+    points_ = np.asarray(pred_pcd.points)
+    mask = (dists<=threshold)
+    return mask,points_[mask]
