@@ -260,12 +260,23 @@ class NeRFSystem(LightningModule):
             # xyzs = np.expand_dims(xyzs,axis=2)
             # align_m = np.expand_dims(align_m,axis=0)
             # xyzs = align_m.repeat(xyzs.shape[0],axis=0) @ xyzs
-            # xyzs = xyzs.squeeze(-1)
 
             pcd_file = f'{self.pcd_dir}/{idx:03d}.ply'
             # rgbs = (results['rgb'].cpu().numpy() * 255).astype(np.uint8)
             # write_pointcloud(pcd_file, xyz=xyzs, rgb=rgbs)
             write_pointcloud(pcd_file, xyz=xyzs[:,:3], rgb=rgbs)
+
+            if self.hparams.mark_points_on_surface:
+                gt_pcd = create_pcd_from_ply(self.hparams.gt_pcd)
+                pred_pcd = create_pcd_from_numpy(xyzs[:,:3])
+                # mask,xyzs_ = mark_points_on_surface(pred_pcd,gt_pcd,self.hparams.distance_threshold)
+                mask, xyzs_ = mark_points_on_surface(pred_pcd, gt_pcd, threshold=1)
+                mark_pcd_file = f'{self.pcd_dir}/{idx:03d}_on_surface.ply'
+                write_pointcloud(mark_pcd_file, xyz=xyzs_, rgb=rgbs)
+                logs['on_surface'] = mask.sum()
+
+
+
             # del xyzs,rgbs,align_m
             del xyzs, rgbs
 
