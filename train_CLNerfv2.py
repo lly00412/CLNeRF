@@ -176,6 +176,8 @@ class NeRFSystem(LightningModule):
         self.model.mark_invisible_cells(self.train_dataset.K.to(self.device),
                                         self.poses,
                                         self.train_dataset.img_wh)
+        # TODO: comparing hamming distance of the bitmask for density grid across current and last step
+        # TODO: comparing self.density_bitfield
 
     def training_step(self, batch, batch_nb, *args):
         if self.global_step%self.update_interval == 0:
