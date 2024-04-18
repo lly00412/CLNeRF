@@ -15,6 +15,8 @@ def write_pointcloud(filename,xyz,rgb=None):
     assert xyz.shape[1] == 3,'Input XYZ points should be Nx3 float array'
     if rgb is None:
         rgb = np.ones(xyz.shape).astype(np.uint8)*255
+    else:
+        rgb = (rgb * 255).astype(np.uint8)
     assert xyz.shape == rgb.shape,'Input RGB colors should be Nx3 float array and have same size as input XYZ points'
 
     # Write header of .ply file
@@ -102,16 +104,18 @@ def extract_geometry_from_depth_map(tgt_depth_map,c2w,K,depth_clip=None,rgbs=Non
             rgbs = rgbs[depth_map<=depth_clip]
             rgbs = rgbs.detach().cpu()
 
-    if rgbs is not None:
-        rgbs = (rgbs * 255).numpy().astype(np.uint8)
+    # if rgbs is not None:
+    #     rgbs = (rgbs * 255).numpy().astype(np.uint8)
 
-    return world_coords.detach().cpu().numpy(),rgbs
+    return world_coords.detach().cpu().numpy(),rgbs.numpy()
 
-def create_pcd_from_numpy(xyz):
+def create_pcd_from_numpy(xyz,rgb=None):
     if not isinstance(xyz,np.ndarray):
         raise ValueError('Input must be numpy array!')
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(xyz)
+    if rgb is not None:
+        pcd.colors = o3d.utility.Vector3dVector(rgb)
     return pcd
 
 def create_pcd_from_ply(ply_file):
@@ -121,8 +125,11 @@ def create_pcd_from_ply(ply_file):
     return pcd
 
 def mark_points_on_surface(pred_pcd,gt_pcd,threshold):
+    aabb = gt_pcd.get_oriented_bounding_box()
+    pred_pcd = pred_pcd.crop(aabb)
     dists = pred_pcd.compute_point_cloud_distance(gt_pcd)
     dists = np.asarray(dists)
-    points_ = np.asarray(pred_pcd.points)
+    xyzs_ = np.asarray(pred_pcd.points)
+    rgbs_ = np.asarray(pred_pcd.colors)
     mask = (dists<=threshold)
-    return mask,points_[mask]
+    return mask,xyzs_[mask],rgbs_[mask]

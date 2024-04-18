@@ -215,10 +215,10 @@ class NeRFSystem(LightningModule):
             self.pcd_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd'
             os.makedirs(self.pcd_dir, exist_ok=True)
         if self.hparams.save_depth_pcd:
-            self.pcd_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd_clip_colmap/v{hparams.task_curr}'
+            self.pcd_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd_clip_colmap/v{self.hparams.task_curr}'
             os.makedirs(self.pcd_dir, exist_ok=True)
         if self.hparams.mark_points_on_surface:
-            os.makedirs(f'{self.pcd_dir}/on_surface', exist_ok=True)
+            os.makedirs(f'{self.pcd_dir}/on_surface2', exist_ok=True)
 
     def validation_step(self, batch, batch_nb):
         rgb_gt = batch['rgb']
@@ -251,8 +251,8 @@ class NeRFSystem(LightningModule):
                                                   c2w=batch['pose'],
                                                   K=self.test_dataset.K,
                                                   img_shape=(img_h, img_w),
-                                                  depth_clip=self.hparams.depth_clip,
-                                                  device=device) # N*3
+                                                  depth_clip=None,
+                                                  device=device) # N*3, N*3, np.ndarrray
 
             # align_m = np.array([[1.138071816345332055e+00,-7.300598829132702583e-02,6.497527927834608752e-01,-2.323759808085589018e+00],
             #                     [-6.536992969315738033e-01,-9.985495936658358995e-02,1.133764632318774668e+00,1.657361383604702088e+00],
@@ -264,17 +264,16 @@ class NeRFSystem(LightningModule):
             # xyzs = align_m.repeat(xyzs.shape[0],axis=0) @ xyzs
 
             pcd_file = f'{self.pcd_dir}/{idx:03d}.ply'
-            # rgbs = (results['rgb'].cpu().numpy() * 255).astype(np.uint8)
             # write_pointcloud(pcd_file, xyz=xyzs, rgb=rgbs)
             write_pointcloud(pcd_file, xyz=xyzs[:,:3], rgb=rgbs)
 
             if self.hparams.mark_points_on_surface:
                 gt_pcd = create_pcd_from_ply(self.hparams.gt_pcd)
-                pred_pcd = create_pcd_from_numpy(xyzs[:,:3])
+                pred_pcd = create_pcd_from_numpy(xyz=xyzs[:,:3],rgb=rgbs)
                 # mask,xyzs_ = mark_points_on_surface(pred_pcd,gt_pcd,self.hparams.distance_threshold)
-                mask, xyzs_ = mark_points_on_surface(pred_pcd, gt_pcd, threshold=1)
+                mask, xyzs_, rgbs_ = mark_points_on_surface(pred_pcd, gt_pcd, threshold=self.hparams.distance_threshold)
                 mark_pcd_file = f'{self.pcd_dir}/on_surface/{idx:03d}_on_surface.ply'
-                write_pointcloud(mark_pcd_file, xyz=xyzs_, rgb=rgbs)
+                write_pointcloud(mark_pcd_file, xyz=xyzs_, rgb=rgbs_)
                 logs['on_surface'] = mask.sum()/len(mask)
                 print(f'Among {len(mask)} points, {mask.sum()} points are on surface!')
 
@@ -315,8 +314,13 @@ class NeRFSystem(LightningModule):
         if self.hparams.mark_points_on_surface:
             on_surface = np.stack([x['on_surface'] for x in outputs])
             mean_on_surface = on_surface.mean()
+            std_on_surface = on_surface.std()
             self.log('test/on_surface_rate', mean_on_surface, True)
             print(f'On surface rate:{mean_on_surface}')
+            txt_log = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd_clip_colmap/on_surface_rate.txt'
+            with open(txt_log,'a') as f:
+                f.write(f'Task {self.hparams.task_curr} on surface rate: {mean_on_surface:.4f} \t std: {std_on_surface:.4f}\n')
+                f.close()
 
     def on_test_start(self):
         torch.cuda.empty_cache()
