@@ -274,9 +274,13 @@ class NeRFSystem(LightningModule):
                 mask, xyzs_, rgbs_ = mark_points_on_surface(pred_pcd, gt_pcd, threshold=self.hparams.distance_threshold)
                 mark_pcd_file = f'{self.pcd_dir}/on_surface/{idx:03d}_on_surface.ply'
                 write_pointcloud(mark_pcd_file, xyz=xyzs_, rgb=rgbs_)
-                logs['on_surface'] = mask.sum()/len(mask)
-                print(f'Among {len(mask)} points, {mask.sum()} points are on surface!')
-
+                osr = mask.sum()/len(mask)
+                logs['on_surface'] = osr
+                frame_file = f'{self.pcd_dir}/on_surface/val_log.txt'
+                #print(f'Among {len(mask)} points, {mask.sum()} points are on surface!')
+                with open(frame_file,'a') as f:
+                    f.write(f'frame {idx:03d}: valid points: {len(mask)} on_surface_rate: {osr:.4f}\n')
+                    f.close()
                 del mask,xyzs_,gt_pcd,pred_pcd
             # del xyzs,rgbs,align_m
             del xyzs, rgbs
