@@ -212,6 +212,8 @@ class NeRFSystem(LightningModule):
         torch.cuda.empty_cache()
         if not self.hparams.no_save_test:
             self.val_dir = f'results/CLNerf/{self.hparams.dataset_name}/{self.hparams.exp_name}'
+            if self.hparams.val_only:
+                self.val_dir = f'{self.val_dir}/v{self.hparams.task_curr}/'
             os.makedirs(self.val_dir, exist_ok=True)
         if self.hparams.save_density_pcd:
             self.pcd_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd'
@@ -220,7 +222,13 @@ class NeRFSystem(LightningModule):
             self.pcd_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd_clip_colmap/v{self.hparams.task_curr}'
             os.makedirs(self.pcd_dir, exist_ok=True)
         if self.hparams.mark_points_on_surface:
-            os.makedirs(f'{self.pcd_dir}/on_surface2', exist_ok=True)
+            os.makedirs(f'{self.pcd_dir}/on_surface', exist_ok=True)
+
+        bit_log = f'results/CLNerf/{self.hparams.dataset_name}/{self.hparams.exp_name}/bitfiled_log.txt'
+        with open(bit_log, 'a') as f:
+            f.write(
+                f'Task {self.hparams.task_curr}: densitybit shape: {self.model.density_bitfield.shape[0]} \t sum: {self.model.density_bitfield.sum().item()}\n')
+            f.close()
 
     def validation_step(self, batch, batch_nb):
         rgb_gt = batch['rgb']
@@ -278,7 +286,7 @@ class NeRFSystem(LightningModule):
                 write_pointcloud(mark_pcd_file, xyz=xyzs_, rgb=rgbs_)
                 osr = mask.sum()/len(mask)
                 logs['on_surface'] = osr
-                frame_file = f'{self.pcd_dir}/on_surface/val_log.txt'
+                frame_file = f'{self.pcd_dir}/on_surface/val_log2.txt'
                 #print(f'Among {len(mask)} points, {mask.sum()} points are on surface!')
                 with open(frame_file,'a') as f:
                     f.write(f'frame {idx:03d}: valid points: {len(mask)} on_surface_rate: {osr:.4f}\n')
@@ -323,7 +331,7 @@ class NeRFSystem(LightningModule):
             std_on_surface = on_surface.std()
             self.log('test/on_surface_rate', mean_on_surface, True)
             print(f'On surface rate:{mean_on_surface}')
-            txt_log = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd_clip_colmap/on_surface_rate.txt'
+            txt_log = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd_clip_colmap/on_surface_rate2.txt'
             with open(txt_log,'a') as f:
                 f.write(f'Task {self.hparams.task_curr} on surface rate: {mean_on_surface:.4f} \t std: {std_on_surface:.4f}\n')
                 f.close()
