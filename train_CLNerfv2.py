@@ -29,6 +29,8 @@ from torchmetrics import (
     StructuralSimilarityIndexMeasure
 )
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
+from torchmetrics.classification import BinaryHammingDistance
+
 
 # pytorch-lightning
 from pytorch_lightning.plugins import DDPPlugin
@@ -224,11 +226,31 @@ class NeRFSystem(LightningModule):
         if self.hparams.mark_points_on_surface:
             os.makedirs(f'{self.pcd_dir}/on_surface', exist_ok=True)
 
+        torch.cuda.empty_cache()
+        hdist = torch.tensor(0.)
+        if self.hparams.task_curr>0:
+            bit_file = f'results/CLNerf/{self.hparams.dataset_name}/{self.hparams.exp_name}/v{self.hparams.task_curr-1}/bitfiled.pth'
+            last_bitfiled = torch.load(bit_file,map_location=torch.device('cpu'))
+            last_bitfiled = np.unpackbits(last_bitfiled.numpy())
+            curr_bitfiled = self.model.density_bitfield.clone()
+            curr_bitfiled = np.unpackbits(curr_bitfiled.detach().cpu().numpy())
+            last_bitfiled = torch.from_numpy(last_bitfiled).cuda()
+            curr_bitfiled = torch.from_numpy(curr_bitfiled).cuda()
+            metric = BinaryHammingDistance().cuda()
+            hdist = metric(curr_bitfiled, last_bitfiled)
+
+            del last_bitfiled,curr_bitfiled
+
         bit_log = f'results/CLNerf/{self.hparams.dataset_name}/{self.hparams.exp_name}/bitfiled_log.txt'
         with open(bit_log, 'a') as f:
             f.write(
-                f'Task {self.hparams.task_curr}: densitybit shape: {self.model.density_bitfield.shape[0]} \t sum: {self.model.density_bitfield.sum().item()}\n')
+                f'Task {self.hparams.task_curr}: densitybit shape: {self.model.density_bitfield.shape[0]}\t'
+                f'sum: {self.model.density_bitfield.sum().item()}\t'
+                f'hamming dist: {hdist.item():.4f}\n')
             f.close()
+        torch.save(self.model.density_bitfield, f'{self.val_dir}/bitfiled.pth')
+
+
 
     def validation_step(self, batch, batch_nb):
         rgb_gt = batch['rgb']
