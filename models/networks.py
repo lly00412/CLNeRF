@@ -243,7 +243,9 @@ class NGP(nn.Module):
         if warmup: # during the first steps
             cells = self.get_all_cells()
         else:
-            cells = self.sample_uniform_and_occupied_cells(self.grid_size**3//4,
+            # cells = self.sample_uniform_and_occupied_cells(self.grid_size**3//4,
+            #                                                density_threshold)
+            cells = self.sample_uniform_and_occupied_cells(self.grid_size ** 3 // 2,
                                                            density_threshold)
         # infer sigmas
         for c in range(self.cascades):
