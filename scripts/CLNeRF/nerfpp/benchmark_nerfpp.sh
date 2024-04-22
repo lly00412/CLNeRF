@@ -9,7 +9,7 @@ for ((i=0; i<$task_number; i++))
 do
     python train_CLNerf.py \
         --root_dir $ROOT_DIR'/'$data --dataset_name nerfpp_CLNerf \
-        --exp_name $data'_'$task_number'task_'$rep \
+        --exp_name $data'_'$task_number'task_'$rep'_v2' \
         --num_epochs 20 --scale 4.0 --rep_size $rep --eval_lpips \
         --task_curr $i --task_number $task_number
 done
@@ -19,7 +19,7 @@ for ((i=0; i<$task_number; i++))
 do
     python train_CLNerf.py \
         --root_dir $ROOT_DIR'/'$data --dataset_name nerfpp_CLNerf \
-        --exp_name $data'_'$task_number'task_'$rep \
+        --exp_name $data'_'$task_number'task_'$rep'_v2' \
         --num_epochs 20 --scale 4.0 --rep_size $rep --eval_lpips \
         --task_curr $i --task_number $task_number
 done
@@ -30,7 +30,7 @@ for ((i=0; i<$task_number; i++))
 do
     python train_CLNerf.py \
         --root_dir $ROOT_DIR'/'$data --dataset_name nerfpp_CLNerf \
-        --exp_name $data'_'$task_number'task_'$rep \
+        --exp_name $data'_'$task_number'task_'$rep'_v2' \
         --num_epochs 20 --scale 16.0 --batch_size 4096 --rep_size $rep --eval_lpips \
         --task_curr $i --task_number $task_number
 done
@@ -40,7 +40,7 @@ for ((i=0; i<$task_number; i++))
 do
     python train_CLNerf.py \
         --root_dir $ROOT_DIR'/'$data --dataset_name nerfpp_CLNerf \
-        --exp_name $data'_'$task_number'task_'$rep \
+        --exp_name $data'_'$task_number'task_'$rep'_v2' \
         --num_epochs 20 --scale 16.0 --batch_size 4096 --rep_size $rep --eval_lpips \
         --task_curr $i --task_number $task_number
 done

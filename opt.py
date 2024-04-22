@@ -124,6 +124,10 @@ def get_opts():
                         type=str,
                         default=None,
                         help='ply file of ground truth point cloud.')
+    parser.add_argument('--test_bitfiled',
+                        action='store_true',
+                        default=False,
+                        help='test the bitfiled changes on density grid.')
 
     # misc
     parser.add_argument('--exp_name',
