@@ -112,6 +112,22 @@ def get_opts():
                         type=float,
                         default=None,
                         help='clip distance of the depth map, None means using all points.')
+    parser.add_argument('--mark_points_on_surface',
+                        action='store_true',
+                        default=False,
+                        help='compute if the points on surface.')
+    parser.add_argument('--distance_threshold',
+                        type=float,
+                        default=0,
+                        help='l2 distance threshold of two point cloud.')
+    parser.add_argument('--gt_pcd',
+                        type=str,
+                        default=None,
+                        help='ply file of ground truth point cloud.')
+    parser.add_argument('--test_bitfiled',
+                        action='store_true',
+                        default=False,
+                        help='test the bitfiled changes on density grid.')
 
     # misc
     parser.add_argument('--exp_name',

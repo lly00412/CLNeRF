@@ -21,3 +21,4 @@
 # CLNeRF on NeRF++ dataset
 rep=10
 sh scripts/CLNeRF/nerfpp/benchmark_nerfpp.sh ${rep}
+#sh scripts/CLNeRF/nerfpp/benchmark_nerfpp_val.sh ${rep}

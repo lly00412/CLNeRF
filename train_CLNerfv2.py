@@ -29,6 +29,8 @@ from torchmetrics import (
     StructuralSimilarityIndexMeasure
 )
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
+from torchmetrics.classification import BinaryHammingDistance
+
 
 # pytorch-lightning
 from pytorch_lightning.plugins import DDPPlugin
@@ -176,6 +178,8 @@ class NeRFSystem(LightningModule):
         self.model.mark_invisible_cells(self.train_dataset.K.to(self.device),
                                         self.poses,
                                         self.train_dataset.img_wh)
+        # TODO: comparing hamming distance of the bitmask for density grid across current and last step
+        # TODO: comparing self.model.density_bitfield
 
     def training_step(self, batch, batch_nb, *args):
         if self.global_step%self.update_interval == 0:
@@ -210,13 +214,46 @@ class NeRFSystem(LightningModule):
         torch.cuda.empty_cache()
         if not self.hparams.no_save_test:
             self.val_dir = f'results/CLNerf/{self.hparams.dataset_name}/{self.hparams.exp_name}'
+            if self.hparams.val_only:
+                self.val_dir = f'{self.val_dir}/v{self.hparams.task_curr}/'
             os.makedirs(self.val_dir, exist_ok=True)
         if self.hparams.save_density_pcd:
             self.pcd_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd'
             os.makedirs(self.pcd_dir, exist_ok=True)
         if self.hparams.save_depth_pcd:
-            self.pcd_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd_clip_colmap/v{hparams.task_curr}'
+            self.pcd_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd_clip_colmap/v{self.hparams.task_curr}'
             os.makedirs(self.pcd_dir, exist_ok=True)
+        if self.hparams.mark_points_on_surface:
+            os.makedirs(f'{self.pcd_dir}/on_surface', exist_ok=True)
+
+        if self.hparams.test_bitfiled:
+            torch.cuda.empty_cache()
+            hdist = torch.tensor(0.)
+            curr_sum = 0
+            if self.hparams.task_curr>0:
+                bit_file = f'results/CLNerf/{self.hparams.dataset_name}/{self.hparams.exp_name}/v{self.hparams.task_curr-1}/bitfiled.pth'
+                last_bitfiled = torch.load(bit_file,map_location=torch.device('cpu'))
+                last_bitfiled = np.unpackbits(last_bitfiled.numpy())
+                curr_bitfiled = self.model.density_bitfield.clone()
+                curr_bitfiled = np.unpackbits(curr_bitfiled.detach().cpu().numpy())
+                last_bitfiled = torch.from_numpy(last_bitfiled).cuda()
+                curr_bitfiled = torch.from_numpy(curr_bitfiled).cuda()
+                curr_sum = curr_bitfiled.sum()
+                metric = BinaryHammingDistance().cuda()
+                hdist = metric(curr_bitfiled, last_bitfiled)
+
+                del last_bitfiled,curr_bitfiled
+
+            bit_log = f'results/CLNerf/{self.hparams.dataset_name}/{self.hparams.exp_name}/bitfiled_log.txt'
+            with open(bit_log, 'a') as f:
+                f.write(
+                    f'Task {self.hparams.task_curr}: densitybit shape: {self.model.density_bitfield.shape[0]}\t'
+                    f'sum: {curr_sum.item()}\t'
+                    f'hamming dist: {hdist.item():.4f}\n')
+                f.close()
+            torch.save(self.model.density_bitfield, f'{self.val_dir}/bitfiled.pth')
+
+
 
     def validation_step(self, batch, batch_nb):
         rgb_gt = batch['rgb']
@@ -249,8 +286,8 @@ class NeRFSystem(LightningModule):
                                                   c2w=batch['pose'],
                                                   K=self.test_dataset.K,
                                                   img_shape=(img_h, img_w),
-                                                  depth_clip=self.hparams.depth_clip,
-                                                  device=device) # N*3
+                                                  depth_clip=None,
+                                                  device=device) # N*3, N*3, np.ndarrray
 
             # align_m = np.array([[1.138071816345332055e+00,-7.300598829132702583e-02,6.497527927834608752e-01,-2.323759808085589018e+00],
             #                     [-6.536992969315738033e-01,-9.985495936658358995e-02,1.133764632318774668e+00,1.657361383604702088e+00],
@@ -260,12 +297,26 @@ class NeRFSystem(LightningModule):
             # xyzs = np.expand_dims(xyzs,axis=2)
             # align_m = np.expand_dims(align_m,axis=0)
             # xyzs = align_m.repeat(xyzs.shape[0],axis=0) @ xyzs
-            # xyzs = xyzs.squeeze(-1)
 
             pcd_file = f'{self.pcd_dir}/{idx:03d}.ply'
-            # rgbs = (results['rgb'].cpu().numpy() * 255).astype(np.uint8)
             # write_pointcloud(pcd_file, xyz=xyzs, rgb=rgbs)
             write_pointcloud(pcd_file, xyz=xyzs[:,:3], rgb=rgbs)
+
+            if self.hparams.mark_points_on_surface:
+                gt_pcd = create_pcd_from_ply(self.hparams.gt_pcd)
+                pred_pcd = create_pcd_from_numpy(xyz=xyzs[:,:3],rgb=rgbs)
+                # mask,xyzs_ = mark_points_on_surface(pred_pcd,gt_pcd,self.hparams.distance_threshold)
+                mask, xyzs_, rgbs_ = mark_points_on_surface(pred_pcd, gt_pcd, threshold=self.hparams.distance_threshold)
+                mark_pcd_file = f'{self.pcd_dir}/on_surface/{idx:03d}_on_surface.ply'
+                write_pointcloud(mark_pcd_file, xyz=xyzs_, rgb=rgbs_)
+                osr = mask.sum()/len(mask)
+                logs['on_surface'] = osr
+                frame_file = f'{self.pcd_dir}/on_surface/val_log2.txt'
+                #print(f'Among {len(mask)} points, {mask.sum()} points are on surface!')
+                with open(frame_file,'a') as f:
+                    f.write(f'frame {idx:03d}: valid points: {len(mask)} on_surface_rate: {osr:.4f}\n')
+                    f.close()
+                del mask,xyzs_,gt_pcd,pred_pcd
             # del xyzs,rgbs,align_m
             del xyzs, rgbs
 
@@ -299,6 +350,16 @@ class NeRFSystem(LightningModule):
             pcd_file = f'{self.pcd_dir}/epoch={hparams.num_epochs-1}-v{self.hparams.task_curr}.ply'
             write_pointcloud(pcd_file, xyz=xyzs, rgb=None)
             del xyzs
+        if self.hparams.mark_points_on_surface:
+            on_surface = np.stack([x['on_surface'] for x in outputs])
+            mean_on_surface = on_surface.mean()
+            std_on_surface = on_surface.std()
+            self.log('test/on_surface_rate', mean_on_surface, True)
+            print(f'On surface rate:{mean_on_surface}')
+            txt_log = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd_clip_colmap/on_surface_rate2.txt'
+            with open(txt_log,'a') as f:
+                f.write(f'Task {self.hparams.task_curr} on surface rate: {mean_on_surface:.4f} \t std: {std_on_surface:.4f}\n')
+                f.close()
 
     def on_test_start(self):
         torch.cuda.empty_cache()
