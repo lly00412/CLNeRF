@@ -226,34 +226,34 @@ class NeRFSystem(LightningModule):
         if self.hparams.mark_points_on_surface:
             os.makedirs(f'{self.pcd_dir}/on_surface', exist_ok=True)
 
+        self.val_log = f'results/CLNerf/{self.hparams.dataset_name}/{self.hparams.exp_name}/val_log.txt'
         if self.hparams.test_bitfiled:
             torch.cuda.empty_cache()
             hdist = torch.tensor(0.)
             curr_sum = 0
+            curr_bitfiled = self.model.density_bitfield.clone()
+            curr_bitfiled = np.unpackbits(curr_bitfiled.detach().cpu().numpy())
+            curr_bitfiled = torch.from_numpy(curr_bitfiled).cuda()
+            curr_sum = curr_bitfiled.sum()
+
             if self.hparams.task_curr>0:
                 bit_file = f'results/CLNerf/{self.hparams.dataset_name}/{self.hparams.exp_name}/v{self.hparams.task_curr-1}/bitfiled.pth'
                 last_bitfiled = torch.load(bit_file,map_location=torch.device('cpu'))
                 last_bitfiled = np.unpackbits(last_bitfiled.numpy())
-                curr_bitfiled = self.model.density_bitfield.clone()
-                curr_bitfiled = np.unpackbits(curr_bitfiled.detach().cpu().numpy())
                 last_bitfiled = torch.from_numpy(last_bitfiled).cuda()
-                curr_bitfiled = torch.from_numpy(curr_bitfiled).cuda()
-                curr_sum = curr_bitfiled.sum()
                 metric = BinaryHammingDistance().cuda()
                 hdist = metric(curr_bitfiled, last_bitfiled)
 
                 del last_bitfiled,curr_bitfiled
 
-            bit_log = f'results/CLNerf/{self.hparams.dataset_name}/{self.hparams.exp_name}/bitfiled_log.txt'
-            with open(bit_log, 'a') as f:
+            with open(self.val_log, 'a') as f:
                 f.write(
-                    f'Task {self.hparams.task_curr}: densitybit shape: {self.model.density_bitfield.shape[0]}\t'
+                    f'Task {self.hparams.task_curr}:\n'
+                    f'densitybit shape: {self.model.density_bitfield.shape[0]}\t'
                     f'sum: {curr_sum.item()}\t'
                     f'hamming dist: {hdist.item():.4f}\n')
                 f.close()
             torch.save(self.model.density_bitfield, f'{self.val_dir}/bitfiled.pth')
-
-
 
     def validation_step(self, batch, batch_nb):
         rgb_gt = batch['rgb']
@@ -271,6 +271,7 @@ class NeRFSystem(LightningModule):
         self.val_ssim(rgb_pred, rgb_gt)
         logs['ssim'] = self.val_ssim.compute()
         self.val_ssim.reset()
+
         if self.hparams.eval_lpips:
             self.val_lpips(torch.clip(rgb_pred*2-1, -1, 1),
                            torch.clip(rgb_gt*2-1, -1, 1))
@@ -331,6 +332,7 @@ class NeRFSystem(LightningModule):
         return logs
 
     def validation_epoch_end(self, outputs):
+
         psnrs = torch.stack([x['psnr'] for x in outputs])
         mean_psnr = all_gather_ddp_if_available(psnrs).mean()
         self.log('test/psnr', mean_psnr, True)
@@ -339,10 +341,23 @@ class NeRFSystem(LightningModule):
         mean_ssim = all_gather_ddp_if_available(ssims).mean()
         self.log('test/ssim', mean_ssim, True)
 
+        with open(self.val_log, 'a') as f:
+            f.write(f'psnr: {mean_psnr.item():.4f}\t'
+                    f'ssim: {mean_ssim.item():.4f}\t')
+            f.close()
+
         if self.hparams.eval_lpips:
             lpipss = torch.stack([x['lpips'] for x in outputs])
             mean_lpips = all_gather_ddp_if_available(lpipss).mean()
             self.log('test/lpips_vgg', mean_lpips, True)
+            with open(self.val_log, 'a') as f:
+                f.write(f'lpips: {mean_lpips.item():.4f}\n')
+                f.close()
+        else:
+            with open(self.val_log, 'a') as f:
+                f.write(f'\n')
+                f.close()
+
         if self.hparams.save_density_pcd:
             xyzs = extract_geometry_from_density_grid(self.model,
                                                       resolution=128,
@@ -357,8 +372,8 @@ class NeRFSystem(LightningModule):
             self.log('test/on_surface_rate', mean_on_surface, True)
             print(f'On surface rate:{mean_on_surface}')
             txt_log = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/pcd_clip_colmap/on_surface_rate2.txt'
-            with open(txt_log,'a') as f:
-                f.write(f'Task {self.hparams.task_curr} on surface rate: {mean_on_surface:.4f} \t std: {std_on_surface:.4f}\n')
+            with open(self.val_log, 'a') as f:
+                f.write(f'on surface rate: {mean_on_surface:.4f} \t std: {std_on_surface:.4f}\n')
                 f.close()
 
     def on_test_start(self):

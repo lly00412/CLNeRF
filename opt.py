@@ -108,10 +108,6 @@ def get_opts():
                         action='store_true',
                         default=False,
                         help='whether to save the point cloud from render depth map')
-    parser.add_argument('--depth_clip',
-                        type=float,
-                        default=None,
-                        help='clip distance of the depth map, None means using all points.')
     parser.add_argument('--mark_points_on_surface',
                         action='store_true',
                         default=False,
