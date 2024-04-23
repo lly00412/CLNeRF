@@ -24,6 +24,8 @@ class NeRFPPDataset_CLNerf(BaseDataset):
         self.rep_dir = kwargs.get('rep_dir', '')
         self.nerf_rep = kwargs.get('nerf_rep', True)
 
+        # TODO：change the replay buff to be the high uncertainty image and reweighted the selection
+
         if kwargs.get('read_meta', True):
             self.read_meta(split)
 
