@@ -89,7 +89,6 @@ class NeRFPPDataset_CLNerf(BaseDataset):
                     elif self.task_ids[i] < self.task_curr:
                         self.id_rep.append(i)
 
-
                 if self.rep_size == 0:
                     self.id_train_final = self.id_task_curr
                 elif split == 'rep':
@@ -130,7 +129,7 @@ class NeRFPPDataset_CLNerf(BaseDataset):
                                 print("changing {} to {}".format(img_paths[id_rep], rep_name))
                             img_paths[id_rep] = rep_name
                     self.id_train_final = self.id_task_curr + self.id_rep
-                print("self.id_task_curr = {}, self.rep_size = {}, id_train_final = {}".format(self.id_task_curr, self.rep_size, self.id_train_final))
+                print("self.id_task_curr = {}, self.rep_size = {}, self.id_rep = {}, id_train_final = {}".format(self.id_task_curr, self.rep_size, self.id_rep, self.id_train_final))
             else:
                 self.id_train_final = list(range(len(poses)))
 
