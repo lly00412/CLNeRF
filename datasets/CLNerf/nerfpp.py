@@ -157,11 +157,11 @@ class NeRFPPDataset_CLNerf(BaseDataset):
                 if self.task_curr == 0:
                     img_idxs = np.random.choice(len(self.poses), self.batch_size)
                 else:
-                    img_idxs = torch.cat(
-                        (self.id_rep[np.random.choice(self.id_rep.shape[0], self.batch_size // 3)],
-                         self.id_task_curr[
-                             np.random.choice(self.id_task_curr.shape[0], self.batch_size - self.batch_size // 3)]),
-                        dim=0)
+                    img_idxs = np.concatenate(
+                        (np.array(self.id_rep)[np.random.choice(len(self.id_rep), self.batch_size // 3)],
+                         np.array(self.id_task_curr)[
+                             np.random.choice(len(self.id_task_curr), self.batch_size - self.batch_size // 3)]),
+                        axis=0)
 
             # randomly select pixels
             pix_idxs = np.random.choice(self.img_wh[0]*self.img_wh[1], self.batch_size)
