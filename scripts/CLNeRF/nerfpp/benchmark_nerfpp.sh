@@ -42,6 +42,7 @@ do
         --root_dir $ROOT_DIR'/'$data --dataset_name nerfpp_CLNerf \
         --exp_name $data'_'$task_number'task_'$rep'_v3' \
         --num_epochs 20 --scale 16.0 --batch_size 4096 --rep_size $rep --eval_lpips \
-        --task_curr $i --task_number $task_number
+        --task_curr $i --task_number $task_number \
+        --ray_sampling_strategy prior_images
 done
 

@@ -149,11 +149,20 @@ class NeRFPPDataset_CLNerf(BaseDataset):
 
     def __getitem__(self, idx):
         if self.split.startswith('train'):
-            # training pose is retrieved in train.py
             if self.ray_sampling_strategy == 'all_images': # randomly select images
                 img_idxs = np.random.choice(len(self.poses), self.batch_size)
             elif self.ray_sampling_strategy == 'same_image': # randomly select ONE image
                 img_idxs = np.random.choice(len(self.poses), 1)[0]
+            elif self.ray_sampling_strategy == 'prior_images':
+                if self.task_curr == 0:
+                    img_idxs = np.random.choice(len(self.poses), self.batch_size)
+                else:
+                    img_idxs = torch.cat(
+                        (self.id_rep[np.random.choice(self.id_rep.shape[0], self.batch_size // 3)],
+                         self.id_task_curr[
+                             np.random.choice(self.id_task_curr.shape[0], self.batch_size - self.batch_size // 3)]),
+                        dim=0)
+
             # randomly select pixels
             pix_idxs = np.random.choice(self.img_wh[0]*self.img_wh[1], self.batch_size)
             rays = self.rays[img_idxs, pix_idxs]
@@ -161,6 +170,7 @@ class NeRFPPDataset_CLNerf(BaseDataset):
                       'rgb': rays[:, :3]}
             if self.rays.shape[-1] == 4: # HDR-NeRF data
                 sample['exposure'] = rays[:, 3:]
+
         elif self.split.startswith('rep'):
             sample = {'pose': self.poses[idx], 'img_idxs': idx, 'fname': os.path.basename(self.img_paths[self.id_train_final[idx]]),'id_ori': self.id_train_final[idx],'task_id': self.task_ids[self.id_train_final[idx]]}
             if len(self.rays)>0: # if ground truth available
