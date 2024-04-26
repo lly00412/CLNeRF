@@ -10,13 +10,13 @@ for ((i=0; i<$task_number; i++))
 do
     if [ $i -gt 0 ]
     then
-    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'/epoch=19-v'$i'.ckpt'
+    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'_v3/epoch=19-v'$i'.ckpt'
     else
-    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'/epoch=19.ckpt'
+    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'_v3/epoch=19.ckpt'
     fi
     python train_CLNerfv2.py \
         --root_dir $ROOT_DIR'/'$data --dataset_name nerfpp_CLNerf \
-        --exp_name $data'_'$task_number'task_'$rep \
+        --exp_name $data'_'$task_number'task_'$rep'_v3' \
         --num_epochs 0 --scale 4.0 --rep_size $rep --eval_lpips \
         --task_curr $i --task_number $task_number \
         --val_only \
@@ -32,13 +32,13 @@ for ((i=0; i<$task_number; i++))
 do
   if [ $i -gt 0 ]
     then
-    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'/epoch=19-v'$i'.ckpt'
+    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'_v3/epoch=19-v'$i'.ckpt'
     else
-    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'/epoch=19.ckpt'
+    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'_v3/epoch=19.ckpt'
     fi
     python train_CLNerfv2.py \
         --root_dir $ROOT_DIR'/'$data --dataset_name nerfpp_CLNerf \
-        --exp_name $data'_'$task_number'task_'$rep \
+        --exp_name $data'_'$task_number'task_'$rep'_v3' \
         --num_epochs 0 --scale 4.0 --rep_size $rep --eval_lpips \
         --task_curr $i --task_number $task_number \
         --val_only \
@@ -55,13 +55,13 @@ for ((i=0; i<$task_number; i++))
 do
   if [ $i -gt 0 ]
     then
-    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'/epoch=19-v'$i'.ckpt'
+    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'_v3/epoch=19-v'$i'.ckpt'
     else
-    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'/epoch=19.ckpt'
+    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'_v3/epoch=19.ckpt'
     fi
     python train_CLNerfv2.py \
         --root_dir $ROOT_DIR'/'$data --dataset_name nerfpp_CLNerf \
-        --exp_name $data'_'$task_number'task_'$rep \
+        --exp_name $data'_'$task_number'task_'$rep'_v3' \
         --num_epochs 0 --scale 16.0 --batch_size 4096 --rep_size $rep --eval_lpips \
         --task_curr $i --task_number $task_number \
         --val_only \
@@ -77,13 +77,13 @@ for ((i=0; i<$task_number; i++))
 do
   if [ $i -gt 0 ]
     then
-    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'/epoch=19-v'$i'.ckpt'
+    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'_v3/epoch=19-v'$i'.ckpt'
     else
-    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'/epoch=19.ckpt'
+    ckpt_file='ckpts/lb/nerfpp_CLNerf/'$data'_'$task_number'task_'$rep'_v3/epoch=19.ckpt'
     fi
     python train_CLNerfv2.py \
         --root_dir $ROOT_DIR'/'$data --dataset_name nerfpp_CLNerf \
-        --exp_name $data'_'$task_number'task_'$rep \
+        --exp_name $data'_'$task_number'task_'$rep'_v3' \
         --num_epochs 0 --scale 16.0 --batch_size 4096 --rep_size $rep --eval_lpips \
         --task_curr $i --task_number $task_number \
         --val_only \
