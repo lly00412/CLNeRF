@@ -21,3 +21,4 @@ test_run.sh
 demo/*.mp4
 *.iml
 *.xml
+/.idea
