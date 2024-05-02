@@ -23,6 +23,8 @@ class NeRFPPDataset_CLNerf(BaseDataset):
         self.rep_size = kwargs.get('rep_size', 0)
         self.rep_dir = kwargs.get('rep_dir', '')
         self.nerf_rep = kwargs.get('nerf_rep', True)
+        self.rep_p = None
+        self.curr_p = None
 
         # TODO：change the replay buff to be the high uncertainty image and reweighted the selection
 
@@ -161,6 +163,15 @@ class NeRFPPDataset_CLNerf(BaseDataset):
                         (np.array(self.id_rep)[np.random.choice(len(self.id_rep), self.batch_size // 3)],
                          np.array(self.id_task_curr)[
                              np.random.choice(len(self.id_task_curr), self.batch_size - self.batch_size // 3)]),
+                        axis=0)
+            elif self.ray_sampling_strategy == 'uncert_images':
+                if self.task_curr == 0:
+                    img_idxs = np.random.choice(len(self.poses), self.batch_size)
+                else:
+                    img_idxs = np.concatenate(
+                        (np.array(self.id_rep)[np.random.choice(len(self.id_rep), size=self.batch_size // 3, p=self.rep_p)],
+                         np.array(self.id_task_curr)[
+                             np.random.choice(len(self.id_task_curr), size=self.batch_size - self.batch_size // 3, p=self.curr_p)]),
                         axis=0)
 
             # randomly select pixels
