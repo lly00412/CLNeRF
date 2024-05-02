@@ -118,6 +118,10 @@ class NeRFSystem(LightningModule):
         self.train_dataset.batch_size = self.hparams.batch_size
         self.train_dataset.ray_sampling_strategy = self.hparams.ray_sampling_strategy
 
+
+
+
+
         self.test_dataset = dataset(split='test', **kwargs)
         self.rep_dataset = dataset(split='rep', **kwargs)
 
@@ -375,6 +379,9 @@ class NeRFSystem(LightningModule):
             with open(self.val_log, 'a') as f:
                 f.write(f'on surface rate: {mean_on_surface:.4f} \t std: {std_on_surface:.4f}\n')
                 f.close()
+
+
+    def
 
     def on_test_start(self):
         torch.cuda.empty_cache()
