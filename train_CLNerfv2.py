@@ -118,6 +118,7 @@ class NeRFSystem(LightningModule):
         self.train_dataset.batch_size = self.hparams.batch_size
         self.train_dataset.ray_sampling_strategy = self.hparams.ray_sampling_strategy
 
+        # TODO: compute rep_p and curr_p seperately and then replace the sampling probability of each batch.
 
         self.test_dataset = dataset(split='test', **kwargs)
         self.rep_dataset = dataset(split='rep', **kwargs)
