@@ -175,117 +175,15 @@ class NeRFSystem(LightningModule):
                           num_workers=8,
                           batch_size=None,
                           pin_memory=True)
-    def pre_dataloader(self):
-        return DataLoader(self.train_dataset,
+    def candidate_dataloader(self):
+        return DataLoader(self.candidate_dataset,
                           num_workers=8,
                           batch_size=None,
                           pin_memory=True)
-
-    def render_virtual_cam(self,new_c2w, batch):
-        v_batch = {'pose': new_c2w.to(batch['pose']),
-                   'img_idxs': batch['img_idxs']}
-        v_results = self(v_batch, split='test')
-        return v_results
-    def warp_uncert(self, batch, results, img_h, img_w, K, theta, isdense=True):
-        opacity = results['opacity'].cpu()  # (n_rays)
-        pix_idxs = torch.arange(img_h * img_w)
-        warp_depths = [results['depth'].cpu()]
-
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        vargs = {'ref_c2w': batch['pose'].clone().cpu(),
-                 'K': K.clone().cpu(),
-                 'device': device,
-                 'ref_depth_map': results['depth'].cpu(),
-                 'opacity': opacity,
-                 'dense_map': isdense,
-                 'pix_ids': pix_idxs,
-                 'img_h': img_h,
-                 'img_w': img_w}
-
-        Vcam = GetVirtualCam(vargs)
-        thetas = [theta, -theta, theta, -theta]
-        rot_ax = ['x', 'x', 'y', 'y']
-        counts = 0
-
-        for theta, ax in zip(thetas, rot_ax):
-            new_c2w = Vcam.get_near_c2w(batch['pose'].clone().cpu(), theta=theta, axis=ax)
-            v_results = self.render_virtual_cam(new_c2w, batch)
-            v_depth = v_results['depth'].cpu()
-            v_opacity = v_results['opacity'].cpu()
-
-            w, h = self.train_dataset.img_wh
-            rgb_pred = rearrange(v_results['rgb'], '(h w) c -> 1 c h w', h=h)
-            rgb_pred = rearrange(v_results['rgb'].cpu().numpy(), '(h w) c -> h w c', h=h)
-            rgb_pred = (rgb_pred * 255).astype(np.uint8)
-            idx = batch['img_idxs']
-            imageio.imsave(os.path.join(self.rep_dir, f'{idx}_{rot_ax}_{theta}.png'), rgb_pred)
-
-            _, out_pix_idxs = warp_tgt_to_ref(results['depth'].cpu(), new_c2w, batch['pose'],
-                                                     K,
-                                                     pix_idxs, (img_h, img_w), device)
-            warp_depth = v_depth[out_pix_idxs.cpu()]
-            warp_opacity = v_opacity[out_pix_idxs.cpu()]
-            print(warp_depth)
-
-            warp_depth[warp_opacity == 0] = 0
-            counts += (warp_opacity > 0)
-            warp_depth = warp_depth.cpu()
-            warp_depths += [warp_depth]
-
-        warp_depths = torch.stack(warp_depths)
-        warp_sigmas = torch.std(warp_depths.cpu(), dim=0)
-        counts = (counts > 0).cpu() & (opacity > 0).cpu()
-        warp_score = torch.mean(warp_sigmas[counts > 0].flatten())
-
-        return warp_sigmas.cpu(), counts.cpu(), warp_score.cpu()
-    def modify_sampling_probability(self):
-        torch.cuda.empty_cache()
-        self.rep_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/rep'
-        os.makedirs(self.rep_dir, exist_ok=True)
-
-        curr_scores = []
-        curr_idxs = []
-        rep_scores = []
-        rep_idxs = []
-        K = self.rep_dataset.K
-        print('Computing uncertainty for candidates....')
-        self.train_dataset.split = 'test'
-        pbar = tqdm(total=len(self.train_dataset.id_train_final))
-        for batch_idx, batch in enumerate(self.pre_dataloader()):
-            results = self.pre_step(batch,batch_idx)
-            img_w, img_h = self.test_dataset.img_wh
-            _, _, u_score = self.warp_uncert(batch, results,
-                                                       img_h, img_w, K, theta=1,
-                                                       isdense=True)
-            if batch['img_idxs'] in self.train_dataset.id_task_curr:
-                curr_scores += [u_score.item()]
-                curr_idxs += [batch['img_idxs']]
-            else:
-                rep_scores += [u_score.item()]
-                rep_idxs += [batch['img_idxs']]
-            pbar.update(1)
-        pbar.close()
-
-        curr_mapping = {val: idx for idx, val in enumerate(self.train_dataset.id_task_curr)}
-        curr_scores = [curr_scores[curr_mapping[val]] for val in self.train_dataset.id_task_curr]
-
-        rep_mapping = {val: idx for idx, val in enumerate(self.train_dataset.id_rep)}
-        rep_scores = [rep_scores[rep_mapping[val]] for val in self.train_dataset.id_rep]
-
-        self.train_dataset.curr_p = np.array(curr_scores)/sum(curr_scores)
-        self.train_dataset.rep_p = np.array(rep_scores)/sum(rep_scores)
-        self.train_dataset.split = 'train'
-
-        return None
     def on_train_start(self):
         self.model.mark_invisible_cells(self.train_dataset.K.to(self.device),
                                         self.poses,
                                         self.train_dataset.img_wh)
-        if hparams.task_curr > 0:
-            if self.hparams.ray_sampling_strategy == 'uncert_images':
-                self.modify_sampling_probability()
-        # TODO: comparing hamming distance of the bitmask for density grid across current and last step
-        # TODO: comparing self.model.density_bitfield
 
     def training_step(self, batch, batch_nb, *args):
         if self.global_step%self.update_interval == 0:
@@ -506,6 +404,117 @@ class NeRFSystem(LightningModule):
         results = self(batch, split='test')
         return results
 
+    def render_virtual_cam(self, new_c2w, batch):
+        v_batch = {'pose': new_c2w.to(batch['pose']),
+                   'img_idxs': batch['img_idxs']}
+        v_results = self(v_batch, split='test')
+        return v_results
+
+    def warp_uncert(self, batch, results, img_h, img_w, K, theta, isdense=True):
+        opacity = results['opacity'].cpu()  # (n_rays)
+        pix_idxs = torch.arange(img_h * img_w)
+        warp_depths = [results['depth'].cpu()]
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        vargs = {'ref_c2w': batch['pose'].clone().cpu(),
+                 'K': K.clone().cpu(),
+                 'device': device,
+                 'ref_depth_map': results['depth'].cpu(),
+                 'opacity': opacity,
+                 'dense_map': isdense,
+                 'pix_ids': pix_idxs,
+                 'img_h': img_h,
+                 'img_w': img_w}
+
+        Vcam = GetVirtualCam(vargs)
+        thetas = [theta, -theta, theta, -theta]
+        rot_ax = ['x', 'x', 'y', 'y']
+        counts = 0
+
+        for theta, ax in zip(thetas, rot_ax):
+            new_c2w = Vcam.get_near_c2w(batch['pose'].clone().cpu(), theta=theta, axis=ax)
+            v_results = self.render_virtual_cam(new_c2w, batch)
+            v_depth = v_results['depth'].cpu()
+            v_opacity = v_results['opacity'].cpu()
+
+            w, h = self.train_dataset.img_wh
+            rgb_pred = rearrange(v_results['rgb'], '(h w) c -> 1 c h w', h=h)
+            rgb_pred = rearrange(v_results['rgb'].cpu().numpy(), '(h w) c -> h w c', h=h)
+            rgb_pred = (rgb_pred * 255).astype(np.uint8)
+            idx = batch['img_idxs']
+            imageio.imsave(os.path.join(self.rep_dir, f'{idx}_{rot_ax}_{theta}.png'), rgb_pred)
+
+            _, out_pix_idxs = warp_tgt_to_ref(results['depth'].cpu(), new_c2w, batch['pose'],
+                                              K,
+                                              pix_idxs, (img_h, img_w), device)
+            warp_depth = v_depth[out_pix_idxs.cpu()]
+            warp_opacity = v_opacity[out_pix_idxs.cpu()]
+            print(warp_depth)
+
+            warp_depth[warp_opacity == 0] = 0
+            counts += (warp_opacity > 0)
+            warp_depth = warp_depth.cpu()
+            warp_depths += [warp_depth]
+
+        warp_depths = torch.stack(warp_depths)
+        warp_sigmas = torch.std(warp_depths.cpu(), dim=0)
+        counts = (counts > 0).cpu() & (opacity > 0).cpu()
+        warp_score = torch.mean(warp_sigmas[counts > 0].flatten())
+
+        return warp_sigmas.cpu(), counts.cpu(), warp_score.cpu()
+
+    def compute_sampling_probability(self):
+        torch.cuda.empty_cache()
+        # self.rep_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/rep'
+        # os.makedirs(self.rep_dir, exist_ok=True)
+        dataset = dataset_dict[self.hparams.dataset_name]
+        kwargs = {'root_dir': self.hparams.root_dir,
+                  'downsample': self.hparams.downsample,
+                  'task_number': self.hparams.task_number,
+                  'task_curr': self.hparams.task_curr + 1,
+                  'task_split_method': self.hparams.task_split_method,
+                  'rep_size': self.hparams.rep_size,
+                  'rep_dir': f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/rep',
+                  'nerf_rep': self.hparams.nerf_rep}
+        self.candidate_dataset = dataset(split='train', **kwargs)
+        self.candidate_dataset.batch_size = self.hparams.batch_size
+        self.candidate_dataset.ray_sampling_strategy = self.hparams.ray_sampling_strategy
+
+        curr_scores = []
+        curr_idxs = []
+        rep_scores = []
+        rep_idxs = []
+        K = self.candidate_dataset.K
+        print('Computing uncertainty for candidates....')
+        self.candidate_dataset.split = 'test'
+        pbar = tqdm(total=len(self.candidate_dataset.id_train_final))
+        for batch_idx, batch in enumerate(self.pre_dataloader()):
+            results = self.pre_step(batch, batch_idx)
+            img_w, img_h = self.candidate_dataset.img_wh
+            _, _, u_score = self.warp_uncert(batch, results,
+                                             img_h, img_w, K, theta=1,
+                                             isdense=True)
+            if batch['img_idxs'] in self.candidate_dataset.id_task_curr:
+                curr_scores += [u_score.item()]
+                curr_idxs += [batch['img_idxs']]
+            else:
+                rep_scores += [u_score.item()]
+                rep_idxs += [batch['img_idxs']]
+            pbar.update(1)
+        pbar.close()
+
+        curr_mapping = {val: idx for idx, val in enumerate(self.candidate_dataset.id_task_curr)}
+        curr_scores = [curr_scores[curr_mapping[val]] for val in self.candidate_dataset.id_task_curr]
+
+        rep_mapping = {val: idx for idx, val in enumerate(self.candidate_dataset.id_rep)}
+        rep_scores = [rep_scores[rep_mapping[val]] for val in self.candidate_dataset.id_rep]
+
+        self.candidate_dataset.curr_p = np.array(curr_scores) / sum(curr_scores)
+        self.candidate_dataset.rep_p = np.array(rep_scores) / sum(rep_scores)
+
+        # TODO: save probabilty and reload at the begining of next task!
+
+        return None
 
     def get_progress_bar_dict(self):
         # don't show the version number
