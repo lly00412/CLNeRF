@@ -58,11 +58,12 @@ def get_opts():
     parser.add_argument('--ray_sampling_strategy',
                         type=str,
                         default='all_images',
-                        choices=['all_images', 'same_image','prior_images'],
+                        choices=['all_images', 'same_image','prior_images', 'uncert_images'],
                         help='''
                         all_images: uniformly from all pixels of ALL images
                         same_image: uniformly from all pixels of a SAME image
                         prior_images: sample 2/3 from the current task and 1/3 from from old tasks
+                        uncert_images: sample 2/3 from the current task and 1/3 from from old tasks, within each task, prior to select high uncert images.
                         ''')
     parser.add_argument('--num_epochs',
                         type=int,
