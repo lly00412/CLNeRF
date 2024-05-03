@@ -16,7 +16,6 @@ class NeRFPPDataset_CLNerf(BaseDataset):
         super().__init__(root_dir, split, downsample)
 
         self.read_intrinsics()
-
         self.task_number = kwargs.get('task_number', 5)
         self.task_curr = kwargs.get('task_curr', 4)
         self.task_split_method = kwargs.get('task_split_method', 'seq')
