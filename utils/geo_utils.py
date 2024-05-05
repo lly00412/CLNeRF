@@ -134,9 +134,16 @@ def mark_points_on_surface(pred_pcd,gt_pcd,threshold):
     mask = (dists<=threshold)
     return mask,xyzs_[mask],rgbs_[mask]
 
-def warp_tgt_to_ref(tgt_depth, ref_c2w, tgt_c2w, K, pixl_ids=None, img_shape=None,device='cpu'):
-    depth_map = tgt_depth.clone()
+
+def warp_tgt_to_ref_sparse(tgt_depth, ref_c2w, tgt_c2w, K, pixl_ids, img_shape, device='cpu'):
+    torch.cuda.empty_cache()
+
+    depth_map = tgt_depth.clone()  # (N_rays)
+    if len(depth_map)> len(pixl_ids):
+        depth_map = depth_map[pixl_ids]
+
     height, width = img_shape
+    n_rays = depth_map.shape[0]
 
     K_homo = torch.eye(4)
     K_homo[:3,:3] = K.clone().cpu()
@@ -149,7 +156,6 @@ def warp_tgt_to_ref(tgt_depth, ref_c2w, tgt_c2w, K, pixl_ids=None, img_shape=Non
     tc2w[:3] = tgt_c2w.clone().cpu()
     tw2c = torch.inverse(tc2w)
 
-    torch.cuda.empty_cache()
     # warp tgt depth map to ref view
     # grab intrinsics and extrinsics from reference view
     P_ref = rw2c.to(torch.float32) # 4x4
@@ -162,8 +168,12 @@ def warp_tgt_to_ref(tgt_depth, ref_c2w, tgt_c2w, K, pixl_ids=None, img_shape=Non
     t_ref = P_ref[:3, 3:4] # 3x1
 
     C_ref = torch.matmul(-R_ref.transpose(0, 1), t_ref)
-    z_ref = R_ref[2:3, :3].reshape(1, 1, 1, 3).repeat(height, width, 1, 1)
-    C_ref = C_ref.reshape(1, 1, 3).repeat(height, width, 1)
+    # z_ref = R_ref[2:3, :3].reshape(1, 1, 1, 3).repeat(height, width, 1, 1)
+    # C_ref = C_ref.reshape(1, 1, 3).repeat(height, width, 1)
+
+    z_ref = R_ref[2:3, :3].reshape(1, 1, 3).repeat(n_rays, 1, 1)
+    C_ref = C_ref.reshape(1, 3).repeat(n_rays, 1)
+
 
     depth_map = depth_map.to(device)  # h,w
 
@@ -188,13 +198,14 @@ def warp_tgt_to_ref(tgt_depth, ref_c2w, tgt_c2w, K, pixl_ids=None, img_shape=Non
     y, x = y.contiguous(), x.contiguous()
     y, x = y.reshape(height * width), x.reshape(height * width)
     homog = torch.stack((x, y, torch.ones_like(x))).to(bwd_rot)
+    homog = homog[..., pixl_ids] # (N_rays, 3)
 
     # get world coords
-    world_coords = torch.matmul(bwd_rot, homog)
+    world_coords = torch.matmul(bwd_rot, homog)  # (N_rays, 3)
     world_coords = world_coords * depth_map.reshape(1, -1)
     world_coords = world_coords + bwd_trans.reshape(3, 1)
-    world_coords = torch.movedim(world_coords, 0, 1)
-    world_coords = world_coords.reshape(height, width, 3)
+    world_coords = torch.movedim(world_coords, 0, 1)  # (N_rays, 3)
+    # world_coords = world_coords.reshape(height, width, 3)
 
     # get pixel projection
     rot_coords = torch.matmul(rot, homog)
@@ -206,7 +217,7 @@ def warp_tgt_to_ref(tgt_depth, ref_c2w, tgt_c2w, K, pixl_ids=None, img_shape=Non
 
     # compute projected depth
     proj_depth = torch.sub(world_coords, C_ref).unsqueeze(-1)
-    proj_depth = torch.matmul(z_ref, proj_depth).reshape(height, width)
+    proj_depth = torch.matmul(z_ref, proj_depth)
     proj_depth = proj_depth.reshape(-1, 1)
 
     # mask out invalid indices
@@ -214,21 +225,36 @@ def warp_tgt_to_ref(tgt_depth, ref_c2w, tgt_c2w, K, pixl_ids=None, img_shape=Non
            torch.where(proj_2d[:, 0] >= 0, 1, 0) * \
            torch.where(proj_2d[:, 1] < width, 1, 0) * \
            torch.where(proj_2d[:, 1] >= 0, 1, 0)
-    inds = torch.where(mask)[0]
-    proj_2d = torch.index_select(proj_2d, dim=0, index=inds)
-    proj_2d = (proj_2d[:, 0] * width) + proj_2d[:, 1]
-    proj_depth = torch.index_select(proj_depth, dim=0, index=inds).squeeze()
 
-    proj_depth, indices = torch.sort(proj_depth, 0) # ascending oreder
-    proj_2d = proj_2d[indices]
+
+    pixl_ids = proj_2d[:, 0] * width + proj_2d[:, 1]
+    pixl_ids[mask == 0] = 0
+    pixl_ids = pixl_ids.squeeze(-1)
+
+    proj_depth, indices = torch.sort(proj_depth, 0)  # ascending oreder
+    sorted_pixl_ids = pixl_ids[indices]
     proj_depth = proj_depth.flip(0)
-    proj_2d = proj_2d.flip(0)
+    sorted_pixl_ids = sorted_pixl_ids.flip(0)
 
-    warped_depth = torch.zeros(height*width).to(proj_depth)
-    warped_depth[proj_2d] = proj_depth
-    # warped_depth = warped_depth.reshape(height, width)
+    warped_depth = torch.zeros(height * width).to(proj_depth)
+    warped_depth[sorted_pixl_ids] = proj_depth
+    warped_depth = warped_depth[pixl_ids]
 
-    return warped_depth, proj_2d
+    del proj_depth,sorted_pixl_ids,indices
+
+    warped_depth[pixl_ids==0] = 0  # (N_rays)
+    warped_depth = warped_depth.squeeze(-1)
+
+    # mask = mask.reshape(-1, 1).to(proj_depth)
+    # warped_depth = proj_depth * mask  # (N_rays)
+    # warped_depth = warped_depth.squeeze(-1)
+
+    # proj_2d[:, 0] = torch.where(proj_2d[:, 0] >= height, height-1, proj_2d[:, 0])
+    # proj_2d[:, 0] = torch.where(proj_2d[:, 0] < 0, 0, proj_2d[:, 0])
+    # proj_2d[:, 1] = torch.where(proj_2d[:, 1] >= width, width-1, proj_2d[:, 1])
+    # proj_2d[:, 1] = torch.where(proj_2d[:, 1] < 0, 0, proj_2d[:, 1])
+
+    return warped_depth, pixl_ids.long()
 
 class GetVirtualCam:
     def __init__(self, kwargs):

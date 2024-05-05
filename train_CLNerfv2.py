@@ -119,9 +119,18 @@ class NeRFSystem(LightningModule):
         self.train_dataset.batch_size = self.hparams.batch_size
         self.train_dataset.ray_sampling_strategy = self.hparams.ray_sampling_strategy
 
-        # TODO: compute rep_p and curr_p seperately and then replace the sampling probability of each batch.
+        # modify sampling probability
+        if self.train_dataset.ray_sampling_strategy == 'uncert_images':
+            if self.hparams.task_curr > 0:
+                rep_dir = kwargs['rep_dir']
+                p_dict = torch.load(f'{rep_dir}/sampling.pth')
+                self.train_dataset.curr_p = p_dict['curr_p']
+                self.train_dataset.rep_p = p_dict['rep_p']
+
+
         self.test_dataset = dataset(split='test', **kwargs)
         self.rep_dataset = dataset(split='rep', **kwargs)
+
 
     def configure_optimizers(self):
         # define additional parameters
@@ -385,6 +394,10 @@ class NeRFSystem(LightningModule):
         self.rep_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/rep'
         os.makedirs(self.rep_dir, exist_ok=True)
 
+    def on_test_end(self):
+        if self.train_dataset.ray_sampling_strategy == 'uncert_images':
+            if self.hparams.task_curr != (self.hparams.task_number - 1):
+                self.compute_sampling_probability()
 
     def test_step(self, batch, batch_nb):
         rgb_gt = batch['rgb']
@@ -444,12 +457,11 @@ class NeRFSystem(LightningModule):
             idx = batch['img_idxs']
             imageio.imsave(os.path.join(self.rep_dir, f'{idx}_{rot_ax}_{theta}.png'), rgb_pred)
 
-            _, out_pix_idxs = warp_tgt_to_ref(results['depth'].cpu(), new_c2w, batch['pose'],
+            _, out_pix_idxs = warp_tgt_to_ref_sparse(results['depth'].cpu(), new_c2w, batch['pose'],
                                               K,
                                               pix_idxs, (img_h, img_w), device)
             warp_depth = v_depth[out_pix_idxs.cpu()]
             warp_opacity = v_opacity[out_pix_idxs.cpu()]
-            print(warp_depth)
 
             warp_depth[warp_opacity == 0] = 0
             counts += (warp_opacity > 0)
@@ -465,8 +477,6 @@ class NeRFSystem(LightningModule):
 
     def compute_sampling_probability(self):
         torch.cuda.empty_cache()
-        # self.rep_dir = f'results/lb/{self.hparams.dataset_name}/{self.hparams.exp_name}/rep'
-        # os.makedirs(self.rep_dir, exist_ok=True)
         dataset = dataset_dict[self.hparams.dataset_name]
         kwargs = {'root_dir': self.hparams.root_dir,
                   'downsample': self.hparams.downsample,
@@ -488,7 +498,7 @@ class NeRFSystem(LightningModule):
         print('Computing uncertainty for candidates....')
         self.candidate_dataset.split = 'test'
         pbar = tqdm(total=len(self.candidate_dataset.id_train_final))
-        for batch_idx, batch in enumerate(self.pre_dataloader()):
+        for batch_idx, batch in enumerate(self.candidate_dataloader()):
             results = self.pre_step(batch, batch_idx)
             img_w, img_h = self.candidate_dataset.img_wh
             _, _, u_score = self.warp_uncert(batch, results,
@@ -509,10 +519,14 @@ class NeRFSystem(LightningModule):
         rep_mapping = {val: idx for idx, val in enumerate(self.candidate_dataset.id_rep)}
         rep_scores = [rep_scores[rep_mapping[val]] for val in self.candidate_dataset.id_rep]
 
-        self.candidate_dataset.curr_p = np.array(curr_scores) / sum(curr_scores)
-        self.candidate_dataset.rep_p = np.array(rep_scores) / sum(rep_scores)
+        curr_p = np.array(curr_scores) / sum(curr_scores)
+        rep_p = np.array(rep_scores) / sum(rep_scores)
 
-        # TODO: save probabilty and reload at the begining of next task!
+        sampling = {'curr_p':curr_p,
+                    'rep_p':rep_p}
+
+        torch.save(sampling,f'{self.rep_dir}/sampling.pth')
+        print(f'Save to {self.rep_dir}/sampling.pth!')
 
         return None
 
