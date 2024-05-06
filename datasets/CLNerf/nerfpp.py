@@ -25,8 +25,6 @@ class NeRFPPDataset_CLNerf(BaseDataset):
         self.rep_p = None
         self.curr_p = None
 
-        # TODO：change the replay buff to be the high uncertainty image and reweighted the selection
-
         if kwargs.get('read_meta', True):
             self.read_meta(split)
 

@@ -43,6 +43,8 @@ from utils.utils import slim_ckpt, load_ckpt
 from utils.geo_utils import *
 from tqdm import tqdm
 
+import pandas as pd
+
 import warnings; warnings.filterwarnings("ignore")
 
 
@@ -240,6 +242,8 @@ class NeRFSystem(LightningModule):
             os.makedirs(f'{self.pcd_dir}/on_surface', exist_ok=True)
 
         self.val_log = f'results/CLNerf/{self.hparams.dataset_name}/{self.hparams.exp_name}/val_log.txt'
+        # TODO: change val_log to be csv.
+
         if self.hparams.test_bitfiled:
             torch.cuda.empty_cache()
             hdist = torch.tensor(0.)
